@@ -1,6 +1,5 @@
-main.exe
-*.o
 .vscode
 .vs
-*.aps
-/resource
+/x64
+/x86
+*.o
