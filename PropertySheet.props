@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <ExecutablePath>C:\Workspace\haar-test\bin;$(ExecutablePath)</ExecutablePath>
+    <IncludePath>C:\Workspace\haar-test\include;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Workspace\haar-test\lib;$(LibraryPath)</LibraryPath>
+    <ExternalIncludePath>C:\Workspace\haar-test\include;$(ExternalIncludePath)</ExternalIncludePath>
+    <LibraryWPath>C:\Workspace\haar-test\bin;$(LibraryWPath)</LibraryWPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <Link>
+      <AdditionalDependencies>assimp-vc142-mtd.lib;glfw3.lib;zlibstaticd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup />
+</Project>

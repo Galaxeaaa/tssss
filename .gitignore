@@ -1,0 +1,6 @@
+main.exe
+*.o
+.vscode
+.vs
+*.aps
+/resource
