@@ -227,6 +227,7 @@
     <ClInclude Include="include\assimp\XMLTools.h" />
     <ClInclude Include="include\assimp\ZipArchiveIOSystem.h" />
     <ClInclude Include="include\camera.hpp" />
+    <ClInclude Include="include\glad\glad.h" />
     <ClInclude Include="include\haar.hpp" />
     <ClInclude Include="include\mesh.hpp" />
     <ClInclude Include="include\model.hpp" />

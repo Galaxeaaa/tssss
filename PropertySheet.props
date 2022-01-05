@@ -3,11 +3,11 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <ExecutablePath>C:\Workspace\haar-test\bin;$(ExecutablePath)</ExecutablePath>
-    <IncludePath>C:\Workspace\haar-test\include;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Workspace\haar-test\lib;$(LibraryPath)</LibraryPath>
-    <ExternalIncludePath>C:\Workspace\haar-test\include;$(ExternalIncludePath)</ExternalIncludePath>
-    <LibraryWPath>C:\Workspace\haar-test\bin;$(LibraryWPath)</LibraryWPath>
+    <ExecutablePath>$(ProjectDir)bin;$(ExecutablePath)</ExecutablePath>
+    <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(ProjectDir)lib;$(LibraryPath)</LibraryPath>
+    <ExternalIncludePath>$(ProjectDir)include;$(ExternalIncludePath)</ExternalIncludePath>
+    <LibraryWPath>$(ProjectDir)bin;$(LibraryWPath)</LibraryWPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <Link>

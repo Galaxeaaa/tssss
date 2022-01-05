@@ -31,8 +31,6 @@ layout(std430, binding = 2) buffer DebugBuffer {
 	DebugStruct data[];
 } debugBuffer;
 
-// layout(r32f, binding = 0) uniform image2D dbgMap;
-
 // Uniforms
 uniform sampler2D depthMap;
 uniform mat4 view;
