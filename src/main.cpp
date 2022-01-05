@@ -86,8 +86,8 @@ namespace tssss
 {
 	const unsigned int tex_w = 1024;
 	const unsigned int tex_h = 1024;
-	const unsigned int coef_w = 32;
-	const unsigned int coef_h = 32;
+	const unsigned int coef_w = 256;
+	const unsigned int coef_h = 256;
 }
 
 enum class RenderingMode
@@ -97,7 +97,7 @@ enum class RenderingMode
 	HAAR,
 };
 
-RenderingMode mode = RenderingMode::FORWARD;
+RenderingMode mode = RenderingMode::HAAR;
 
 int main(int argc, char **argv)
 {
@@ -374,6 +374,7 @@ int main(int argc, char **argv)
 		RGBA *kernel_coef_ptr;
 		for (unsigned int row = 0; row < tssss::tex_h; row++)
 		{
+			timer_haar.setStart();
 			for (unsigned int col = 0; col < tssss::tex_w; col++)
 			{
 				sHaarPass2Kernel.setVec2i("index_kernel_iv", glm::ivec2(row, col));
@@ -389,6 +390,9 @@ int main(int argc, char **argv)
 			delete[] kernel_coef_float_ptr;
 			glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+			timer_haar.setEnd();
+			timer_haar.wait();
+			printf("Time spent on row %d: %f ms\n", row, timer_haar.getTime_ms());
 		}
 		coef_file.close();
 	}

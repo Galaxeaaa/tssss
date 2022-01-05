@@ -22,7 +22,7 @@ layout(std430, binding = 3) buffer V {
 
 void haar2D(uint height, uint width);
 void haar2D_Image(uint m, uint n, layout(rgba32f) image2D img, layout(rgba32f) image2D tmp);
-float fDiffuseProfile(float r, float A = 1.0, float s = 1.0);
+float fDiffuseProfile(float r, float A = 1.0, float s = 23.651121);
 
 void main() {
 	uint GlobalInvocationIndex = gl_WorkGroupID.x * gl_WorkGroupSize.x + gl_LocalInvocationID.x;
@@ -62,17 +62,8 @@ void main() {
 	// haar2D(tex_h, tex_w);
 	barrier();
 	// Store some coefficients.
-	if (GlobalInvocationIndex == 0)
-	{
-		for (row = 0; row < coef_h; row++)
-		{
-			for (col = 0; col < coef_w; col++)
-			{
-				uint index_coef = row * coef_w + col;
-				kernel_coef.data[index_coef] = vec4(imageLoad(kernel, ivec2(row, col)));
-			}
-		}
-	}
+	uint index_coef = GlobalInvocationIndex;
+	kernel_coef.data[index_coef] = vec4(imageLoad(kernel, ivec2(index_coef / coef_w, index_coef % coef_w)));
 	barrier();
 }
 
