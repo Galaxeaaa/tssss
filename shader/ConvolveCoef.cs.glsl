@@ -24,11 +24,10 @@ void main() {
 	for (uint col = 0; col < tex_w; col++)
 	{
 		vec3 sum = vec3(0, 0, 0);
-		// for (int i = 0; i < coef_w * coef_h; i++)
-		// {
-			// sum += vec3(radiance_coef.data[i]) * kernel_coef.data[(row * tex_w + col) * size_coef_array + i].r;
-		// }
-		sum += vec3(radiance_coef.data[0]) * kernel_coef.data[(row * tex_w + col) * size_coef_array + 0].r;
+		for (int i = 0; i < coef_w * coef_h; i++)
+		{
+			sum += vec3(radiance_coef.data[i]) * kernel_coef.data[(row * tex_w + col) * size_coef_array + i].r;
+		}
 		imageStore(radiance_map_after_sss, ivec2(row, col), vec4(sum, 1));
 	}
 	barrier();

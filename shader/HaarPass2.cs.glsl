@@ -1,42 +1,69 @@
 #version 450
 
+#define M_PI 3.1415926535897932384626433832795
+
 layout(local_size_x = 1024, local_size_y = 1, local_size_z = 1) in;
 
-uniform int coef_w, coef_h;
+uniform int coef_w, coef_h, tex_w, tex_h;
+uniform ivec2 index_kernel_iv;
 
-layout(rgba32f, binding = 0) uniform image2D radiance_map;
-layout(rgba32f, binding = 1) uniform image2D haar_wavelet_temp_image;
-layout(std430, binding = 0) buffer RadianceCoef
-{
+layout(rgba32f, binding = 0) uniform image2D world_pos_map;
+layout(rgba32f, binding = 1) uniform image2D kernel;
+layout(rgba32f, binding = 2) uniform image2D haar_wavelet_temp_image;
+layout(std430, binding = 1) buffer KernelCoef {
 	vec4 data[];
-} radiance_coef;
+} kernel_coef;
 
-void haar2D(uint height, uint width, layout(rgba32f) image2D img, layout(rgba32f) image2D tmp);
+void haar2D(uint height, uint width);
+void haar2D_Image(uint m, uint n, layout(rgba32f) image2D img, layout(rgba32f) image2D tmp);
+float fDiffuseProfile(float r, float A = 0.6, float s = 4.031441);
 
 void main() {
-	uint tex_w = imageSize(radiance_map).x;
-	uint tex_h = imageSize(radiance_map).y;
-	uint size_coef_array = coef_w * coef_h;
 	uint GlobalInvocationIndex = gl_WorkGroupID.x * gl_WorkGroupSize.x + gl_LocalInvocationID.x;
-	// Transform radiance map.
-	haar2D(tex_h, tex_w, radiance_map, haar_wavelet_temp_image);
+	uint size_coef_array = coef_w * coef_h;
+	uint i = index_kernel_iv.x;
+	uint j = index_kernel_iv.y;
+	uint index_kernel = i * tex_w + j;
+	uint row, col;
+	// Compute kernel at (i, j).
+	// - Array
+	// if (GlobalInvocationIndex < tex_h)
+	// {
+	// 	row = GlobalInvocationIndex;
+	// 	for (col = 0; col < tex_w; col++)
+	// 	{
+	// 		vec3 pos_i_j = vec3(imageLoad(world_pos_map, ivec2(i, j)));
+	// 		vec3 pos_row_col = vec3(imageLoad(world_pos_map, ivec2(row, col)));
+	// 		float l = length(pos_i_j - pos_row_col);
+	// 		u[row * tex_w + col] = fDiffuseProfile(l);
+	// 		// imageStore(kernel, ivec2(row, col), vec4(fDiffuseProfile(l), 0, 0, 0));
+	// 	}
+	// }
+	// barrier();
+	// - Image
+	row = GlobalInvocationIndex;
+	vec3 pos_i_j = imageLoad(world_pos_map, ivec2(i, j)).xyz;
+	for (col = 0; col < tex_w; col++)
+	{
+		vec3 pos_row_col = vec3(imageLoad(world_pos_map, ivec2(row, col)));
+		float l = length(pos_i_j - pos_row_col);
+		imageStore(kernel, ivec2(row, col), vec4(fDiffuseProfile(l), 0, 0, 0));
+	}
+	barrier();
+	// Transform kernel.
+	haar2D_Image(tex_h, tex_w, kernel, haar_wavelet_temp_image);
+	// haar2D(tex_h, tex_w);
 	barrier();
 	// Store some coefficients.
-	if (GlobalInvocationIndex == 0)
+	if (GlobalInvocationIndex < coef_h * coef_w)
 	{
-		for (uint row = 0; row < coef_h; row++)
-		{
-			for (uint col = 0; col < coef_w; col++)
-			{
-				uint index_coef = row * coef_w + col;
-				radiance_coef.data[index_coef] = imageLoad(radiance_map, ivec2(row, col));
-			}
-		}
+		uint index_coef = GlobalInvocationIndex;
+		kernel_coef.data[index_coef] = vec4(imageLoad(kernel, ivec2(index_coef / coef_w, index_coef % coef_w)));
 	}
 	barrier();
 }
 
-void haar2D(uint m, uint n, layout(rgba32f) image2D img, layout(rgba32f) image2D tmp)
+void haar2D_Image(uint m, uint n, layout(rgba32f) image2D img, layout(rgba32f) image2D tmp)
 {
 	uint GlobalInvocationIndex = gl_WorkGroupID.x * gl_WorkGroupSize.x + gl_LocalInvocationID.x;
 
@@ -98,4 +125,11 @@ void haar2D(uint m, uint n, layout(rgba32f) image2D img, layout(rgba32f) image2D
 	barrier();
 
 	return;
+}
+
+float fDiffuseProfile(float r, float A, float s)
+{
+	if (r == 0)
+		return 0;
+	return A * s * ( ( exp(-s * r) + exp(-s * r / 3) ) / (8 * M_PI * r) );
 }

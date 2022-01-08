@@ -281,13 +281,13 @@
     <ClInclude Include="include\assimp\Compiler\pushpack1.h">
       <Filter>头文件\assimp\Compiler</Filter>
     </ClInclude>
-    <ClInclude Include="resource.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="include\stb_image.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="include\glad\glad.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="include\texture.hpp">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
