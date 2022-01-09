@@ -1,4 +1,4 @@
-#version 450
+#version 460
 
 layout(local_size_x = 1024, local_size_y = 1, local_size_z = 1) in;
 
@@ -11,7 +11,7 @@ layout(std430, binding = 0) buffer RadianceCoef
 	vec4 data[];
 } radiance_coef;
 
-void haar2D(uint height, uint width, layout(rgba32f) image2D img, layout(rgba32f) image2D tmp);
+void haar2D(uint height, uint width);
 
 void main() {
 	uint tex_w = imageSize(radiance_map).x;
@@ -19,7 +19,7 @@ void main() {
 	uint size_coef_array = coef_w * coef_h;
 	uint GlobalInvocationIndex = gl_WorkGroupID.x * gl_WorkGroupSize.x + gl_LocalInvocationID.x;
 	// Transform radiance map.
-	haar2D(tex_h, tex_w, radiance_map, haar_wavelet_temp_image);
+	haar2D(tex_h, tex_w);
 	barrier();
 	// Store some coefficients.
 	if (GlobalInvocationIndex < coef_h * coef_w)
@@ -30,7 +30,7 @@ void main() {
 	barrier();
 }
 
-void haar2D(uint m, uint n, layout(rgba32f) image2D img, layout(rgba32f) image2D tmp)
+void haar2D(uint m, uint n)
 {
 	uint GlobalInvocationIndex = gl_WorkGroupID.x * gl_WorkGroupSize.x + gl_LocalInvocationID.x;
 
@@ -39,11 +39,11 @@ void haar2D(uint m, uint n, layout(rgba32f) image2D img, layout(rgba32f) image2D
 	uint k;
 	float s = sqrt(2.0);
 
-	// copy img into tmp
+	// copy radiance_map into haar_wavelet_temp_image
 	j = GlobalInvocationIndex;
 	for (i = 0; i < m; i++)
 	{
-		imageStore(tmp, ivec2(i, j), imageLoad(img, ivec2(i, j)));
+		imageStore(haar_wavelet_temp_image, ivec2(i, j), imageLoad(radiance_map, ivec2(i, j)));
 	}
 	barrier();
 	// Determine K, the largest power of 2 such that K <= M.
@@ -59,12 +59,12 @@ void haar2D(uint m, uint n, layout(rgba32f) image2D img, layout(rgba32f) image2D
 		k = k / 2;
 		for (i = 0; i < k; i++)
 		{
-			imageStore(tmp, ivec2(i, j), (imageLoad(img, ivec2(2 * i, j)) + imageLoad(img, ivec2(2 * i + 1, j))) / s);
-			imageStore(tmp, ivec2(k + i, j), (imageLoad(img, ivec2(2 * i, j)) - imageLoad(img, ivec2(2 * i + 1, j))) / s);
+			imageStore(haar_wavelet_temp_image, ivec2(i, j), (imageLoad(radiance_map, ivec2(2 * i, j)) + imageLoad(radiance_map, ivec2(2 * i + 1, j))) / s);
+			imageStore(haar_wavelet_temp_image, ivec2(k + i, j), (imageLoad(radiance_map, ivec2(2 * i, j)) - imageLoad(radiance_map, ivec2(2 * i + 1, j))) / s);
 		}
 		for (i = 0; i < 2 * k; i++)
 		{
-			imageStore(img, ivec2(i, j), imageLoad(tmp, ivec2(i, j)));
+			imageStore(radiance_map, ivec2(i, j), imageLoad(haar_wavelet_temp_image, ivec2(i, j)));
 		}
 	}
 	barrier();
@@ -81,12 +81,12 @@ void haar2D(uint m, uint n, layout(rgba32f) image2D img, layout(rgba32f) image2D
 		k = k / 2;
 		for (j = 0; j < k; j++)
 		{
-			imageStore(tmp, ivec2(i, j), (imageLoad(img, ivec2(i, 2 * j)) + imageLoad(img, ivec2(i, 2 * j + 1))) / s);
-			imageStore(tmp, ivec2(i, k + j), (imageLoad(img, ivec2(i, 2 * j)) - imageLoad(img, ivec2(i, 2 * j + 1))) / s);
+			imageStore(haar_wavelet_temp_image, ivec2(i, j), (imageLoad(radiance_map, ivec2(i, 2 * j)) + imageLoad(radiance_map, ivec2(i, 2 * j + 1))) / s);
+			imageStore(haar_wavelet_temp_image, ivec2(i, k + j), (imageLoad(radiance_map, ivec2(i, 2 * j)) - imageLoad(radiance_map, ivec2(i, 2 * j + 1))) / s);
 		}
 		for (j = 0; j < 2 * k; j++)
 		{
-			imageStore(img, ivec2(i, j), imageLoad(tmp, ivec2(i, j)));
+			imageStore(radiance_map, ivec2(i, j), imageLoad(haar_wavelet_temp_image, ivec2(i, j)));
 		}
 	}
 	barrier();

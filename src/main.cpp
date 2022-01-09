@@ -75,15 +75,16 @@ const unsigned int SCR_HEIGHT = 800;
 
 // camera
 // --------------------------------
-Camera camera(glm::vec3(0.0f, 0.0f, 5.0f));
+Camera camera(glm::vec3(0.0f, 0.0f, 1.0f));
 float lastX = (float)SCR_WIDTH / 2.0;
 float lastY = (float)SCR_HEIGHT / 2.0;
 bool firstMouse = true;
+const float move_speed = 0.01;
 
 namespace tssss
 {
-	const unsigned int tex_w = 1024;
-	const unsigned int tex_h = 1024;
+	const unsigned int tex_w = 512;
+	const unsigned int tex_h = 512;
 	const unsigned int coef_w = 8;
 	const unsigned int coef_h = 8;
 }
@@ -96,7 +97,7 @@ enum class RenderingMode
 	HAAR,
 };
 
-RenderingMode mode = RenderingMode::SSS;
+RenderingMode mode = RenderingMode::HAAR;
 
 int main(int argc, char **argv)
 {
@@ -168,9 +169,9 @@ int main(int argc, char **argv)
 	std::cout << "workGroupInvocations: " << workGroupInvocations << std::endl;
 	std::cout << "--------------------------------" << std::endl;
 
-	// tell stb_image.h to flip loaded texture's on the y-axis (before loading model).
-	// --------------------------------
-	stbi_set_flip_vertically_on_load(false);
+	// // tell stb_image.h to flip loaded texture's on the y-axis (before loading model).
+	// // --------------------------------
+	// stbi_set_flip_vertically_on_load(false);
 
 	// configure global opengl state
 	// --------------------------------
@@ -185,18 +186,19 @@ int main(int argc, char **argv)
 	Shader sRenderPass2("shader/RenderPass2.cs.glsl");
 	Shader sRenderPass3("shader/RenderPass3.vs.glsl", "shader/RenderPass3.fs.glsl");
 	// - verification tools
-	Shader sInverseHaar("shader/InverseHaar.cs.glsl");
 	Shader sCheckImage("shader/CheckImage.vs.glsl", "shader/CheckImage.fs.glsl");
 	Shader sConvolveCoef("shader/ConvolveCoef.cs.glsl");
+	// Shader sInverseHaar("shader/InverseHaar.cs.glsl");
 
 	// load models
 	// --------------------------------
-	Model backpack(std::filesystem::current_path().string() + string("/resource/backpack/backpack.obj"));
-	Model mike(std::filesystem::current_path().string() + "/resource/DigitalHuman.fbx");
+	Model smith(std::filesystem::current_path().string() + "/resource/smith/head.obj");
+	// Model mike(std::filesystem::current_path().string() + "/resource/DigitalHuman.fbx");
+	// Model backpack(std::filesystem::current_path().string() + string("/resource/backpack/backpack.obj"));
 
 	// load textures
 	// --------------------------------
-	GLuint mike_diffuse = loadJPG("resource/Mike/head_color_map_001.png");
+	GLuint smith_diffuse = loadJPG("resource/smith/textures/lambertian.jpg");
 
 	// Framebuffer and texture generation.
 	// --------------------------------
@@ -305,31 +307,32 @@ int main(int argc, char **argv)
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	}
 
-	glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+	glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 1000.0f);
 	glm::mat4 view = camera.GetViewMatrix();
 	glm::mat4 model = glm::mat4(1.0f);
-	model = glm::rotate(model, glm::float32(glm::radians(90.0)), glm::vec3(-1.0, 0.0, 0.0));
+	model = glm::rotate(model, glm::float32(glm::radians(90.0)), glm::vec3(1.0, 0.0, 0.0));
+	// model = glm::translate(model, glm::vec3(0, 60, -170));
 
 	if (mode == RenderingMode::HAAR)
 	{
+		glm::mat4 model_haar;
+		model_haar = glm::mat4(1.0f);
+		model_haar = glm::translate(model_haar, glm::vec3(1.0, 1.0, 1.0));
 		// Pass 1
 		// --------------------------------
 		// Render world position map into **tssss_world_pos_map**.
 		// --------------------------------
 		glViewport(0, 0, tssss::tex_w, tssss::tex_h); // Do this to render texture in a larger scale rather than size of display window.
 		glBindFramebuffer(GL_FRAMEBUFFER, fBuffer);
-		glClear(GL_COLOR_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		sHaarPass1.use();
-		sHaarPass1.setMat4("projection", projection);
-		sHaarPass1.setMat4("view", view);
-		model = glm::mat4(1.0f);
-		// model = glm::translate(model, glm::vec3(1.0, 1.0, 1.0));
-		// model = glm::scale(model, glm::vec3(1.0f));
-		sHaarPass1.setMat4("model", model);
-		backpack.Draw(sHaarPass1);
+		sHaarPass1.setMat4("model", model_haar);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, smith_diffuse);
+		smith.Draw(sHaarPass1);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-		/* 	// Pass 2 Test
+		/* 	// Test
 			// --------------------------------
 			// Perform inverse haar transformation.
 			// --------------------------------
@@ -351,9 +354,9 @@ int main(int argc, char **argv)
 		ofstream coef_file("test.sstx", ios::binary);
 		for (int row = 0; row < tssss::tex_h; row++)
 		{
+			timer_haar.setStart();
 			for (int col = 0; col < tssss::tex_w; col++)
 			{
-				timer_haar.setStart();
 				sHaarPass2.use();
 				sHaarPass2.setInt("coef_w", tssss::coef_w);
 				sHaarPass2.setInt("coef_h", tssss::coef_h);
@@ -365,53 +368,50 @@ int main(int argc, char **argv)
 				sHaarPass2.setVec2i("index_kernel_iv", glm::ivec2(row, col));
 				glDispatchCompute(1, 1, 1);
 				glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
-				timer_haar.setEnd();
-				timer_haar.wait();
-				printf("Time spent on row %d col %d: %f ms\n", row, col, timer_haar.getTime_ms());
 
-				// glfwSetWindowShouldClose(window, false);
-				// while (!glfwWindowShouldClose(window))
-				// {
-				// 	// process input
-				// 	// --------------------------------
-				// 	processInput(window);
+				glfwSetWindowShouldClose(window, false);
+				while (!glfwWindowShouldClose(window))
+				{
+					// process input
+					// --------------------------------
+					processInput(window);
 
-				// 	// Pass
-				// 	// --------------------------------
-				// 	// Check radiance map and kernels.
-				// 	// --------------------------------
-				// 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-				// 	glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
-				// 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-				// 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-				// 	sCheckImage.use();
-				// 	glBindImageTexture(0, tssss_radiance_map, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F); // MUST SET IN EACH PROGRAM
-				// 	glBindImageTexture(1, tssss_world_pos_map, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-				// 	glBindImageTexture(2, tssss_kernel, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-				// 	renderQuad();
+					// Pass
+					// --------------------------------
+					// Check image.
+					// --------------------------------
+					glBindFramebuffer(GL_FRAMEBUFFER, 0);
+					glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
+					glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+					glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+					sCheckImage.use();
+					// glBindImageTexture(0, tssss_radiance_map, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+					glBindImageTexture(1, tssss_world_pos_map, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+					glBindImageTexture(2, tssss_kernel, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+					renderQuad();
 
-				// 	glfwSwapBuffers(window);
-				// 	glfwPollEvents();
-				// }
+					glfwSwapBuffers(window);
+					glfwPollEvents();
+				}
 
-				// Check kernel and write to file.
+				// Write to file.
 				// --------------------------------
 				glm::vec4 *kernel_coef_ptr = nullptr;
 				glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo_kernel_coef);
 				kernel_coef_ptr = (glm::vec4 *)glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_WRITE);
 				float *kernel_coef_float_ptr = new float[tssss::coef_h * tssss::coef_w];
-				// glm::vec4 sum(0, 0, 0, 0);
 				for (int i = 0; i < tssss::coef_h * tssss::coef_w; i++)
 				{
 					kernel_coef_float_ptr[i] = kernel_coef_ptr[i].r;
-					// 	sum += kernel_coef_float_ptr[i] * radiance_coef_cpy[i];
 				}
 				coef_file.write((char *)kernel_coef_float_ptr, tssss::coef_h * tssss::coef_w * sizeof(float));
 				delete[] kernel_coef_float_ptr;
 				glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
 				glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-				// printf("Convolution result = (%f, %f, %f).\n", sum.r, sum.g, sum.b);
 			}
+			timer_haar.setEnd();
+			timer_haar.wait();
+			printf("Time spent on row %d: %f ms\n", row, timer_haar.getTime_ms());
 		}
 		coef_file.close();
 	}
@@ -419,31 +419,31 @@ int main(int argc, char **argv)
 	// --------------------------------
 	else if (mode == RenderingMode::SSS)
 	{
-		// Read kernel haar coefficients from file and save to SSBO.
-		// --------------------------------
-		ifstream coef_file;
-		coef_file.open("test.sstx", ios::binary);
-		float *kernel_coef_buffer = new float[32 * 32];
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo_kernel_coef);
-		glm::vec4 *kernel_coef_ptr = (glm::vec4 *)glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_WRITE);
-		for (int kernel_i = 0; kernel_i < tssss::tex_h * tssss::tex_w; kernel_i++)
-		{
-			coef_file.read((char *)kernel_coef_buffer, 32 * 32 * sizeof(float));
-			for (int row = 0; row < tssss::coef_h; row++)
-			{
-				for (int col = 0; col < tssss::coef_w; col++)
-				{
-					kernel_coef_ptr[kernel_i * tssss::coef_w * tssss::coef_h + row * tssss::coef_w + col].r = kernel_coef_buffer[row * 32 + col];
-					kernel_coef_ptr[kernel_i * tssss::coef_w * tssss::coef_h + row * tssss::coef_w + col].g = 0;
-					kernel_coef_ptr[kernel_i * tssss::coef_w * tssss::coef_h + row * tssss::coef_w + col].b = 0;
-					kernel_coef_ptr[kernel_i * tssss::coef_w * tssss::coef_h + row * tssss::coef_w + col].a = 0;
-				}
-			}
-		}
-		glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-		delete[] kernel_coef_buffer;
-		coef_file.close();
+		// // Read kernel haar coefficients from file and save to SSBO.
+		// // --------------------------------
+		// ifstream coef_file;
+		// coef_file.open("test.sstx", ios::binary);
+		// float *kernel_coef_buffer = new float[32 * 32];
+		// glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo_kernel_coef);
+		// glm::vec4 *kernel_coef_ptr = (glm::vec4 *)glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_WRITE);
+		// for (int kernel_i = 0; kernel_i < tssss::tex_h * tssss::tex_w; kernel_i++)
+		// {
+		// 	coef_file.read((char *)kernel_coef_buffer, 32 * 32 * sizeof(float));
+		// 	for (int row = 0; row < tssss::coef_h; row++)
+		// 	{
+		// 		for (int col = 0; col < tssss::coef_w; col++)
+		// 		{
+		// 			kernel_coef_ptr[kernel_i * tssss::coef_w * tssss::coef_h + row * tssss::coef_w + col].r = kernel_coef_buffer[row * 32 + col];
+		// 			kernel_coef_ptr[kernel_i * tssss::coef_w * tssss::coef_h + row * tssss::coef_w + col].g = 0;
+		// 			kernel_coef_ptr[kernel_i * tssss::coef_w * tssss::coef_h + row * tssss::coef_w + col].b = 0;
+		// 			kernel_coef_ptr[kernel_i * tssss::coef_w * tssss::coef_h + row * tssss::coef_w + col].a = 0;
+		// 		}
+		// 	}
+		// }
+		// glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+		// glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+		// delete[] kernel_coef_buffer;
+		// coef_file.close();
 
 		while (!glfwWindowShouldClose(window))
 		{
@@ -453,7 +453,7 @@ int main(int argc, char **argv)
 
 			// update matrices
 			// --------------------------------
-			projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+			projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100000.0f);
 			view = camera.GetViewMatrix();
 
 			// GLTimer timer;
@@ -535,8 +535,8 @@ int main(int argc, char **argv)
 			sRenderPass3.setMat4("projection", projection);
 			sRenderPass3.setVec3("view_pos", camera.Position);
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, mike_diffuse);
-			mike.Draw(sRenderPass3);
+			glBindTexture(GL_TEXTURE_2D, smith_diffuse);
+			smith.Draw(sRenderPass3);
 
 			glfwSwapBuffers(window);
 			glfwPollEvents();
@@ -628,7 +628,7 @@ int main(int argc, char **argv)
 			sRenderPass3.setMat4("view", view);
 			sRenderPass3.setMat4("projection", projection);
 			sRenderPass3.setVec3("view_pos", camera.Position);
-			mike.Draw(sRenderPass3);
+			smith.Draw(sRenderPass3);
 
 			glfwSwapBuffers(window);
 			glfwPollEvents();
@@ -772,21 +772,21 @@ void renderQuad()
 // ---------------------------------------------------------------------------------------------------------
 void processInput(GLFWwindow *window)
 {
-	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_RELEASE)
 		glfwSetWindowShouldClose(window, true);
 
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-		camera.ProcessKeyboard(FORWARD, 1);
+		camera.ProcessKeyboard(FORWARD, move_speed);
 	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-		camera.ProcessKeyboard(BACKWARD, 1);
+		camera.ProcessKeyboard(BACKWARD, move_speed);
 	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-		camera.ProcessKeyboard(LEFT, 1);
+		camera.ProcessKeyboard(LEFT, move_speed);
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-		camera.ProcessKeyboard(RIGHT, 1);
+		camera.ProcessKeyboard(RIGHT, move_speed);
 	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
-		camera.ProcessKeyboard(UP, 1);
+		camera.ProcessKeyboard(UP, move_speed);
 	if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
-		camera.ProcessKeyboard(DOWN, 1);
+		camera.ProcessKeyboard(DOWN, move_speed);
 }
 
 // glfw: whenever the window size changed (by OS or user resize) this callback
