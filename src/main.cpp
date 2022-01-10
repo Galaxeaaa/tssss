@@ -85,8 +85,8 @@ namespace tssss
 {
 	const unsigned int tex_w = 512;
 	const unsigned int tex_h = 512;
-	const unsigned int coef_w = 8;
-	const unsigned int coef_h = 8;
+	const unsigned int coef_w = 16;
+	const unsigned int coef_h = 16;
 }
 
 enum class RenderingMode
@@ -97,7 +97,7 @@ enum class RenderingMode
 	HAAR,
 };
 
-RenderingMode mode = RenderingMode::HAAR;
+RenderingMode mode = RenderingMode::SSS;
 
 int main(int argc, char **argv)
 {
@@ -188,7 +188,7 @@ int main(int argc, char **argv)
 	// - verification tools
 	Shader sCheckImage("shader/CheckImage.vs.glsl", "shader/CheckImage.fs.glsl");
 	Shader sConvolveCoef("shader/ConvolveCoef.cs.glsl");
-	// Shader sInverseHaar("shader/InverseHaar.cs.glsl");
+	Shader sInverseHaar("shader/InverseHaar.cs.glsl");
 
 	// load models
 	// --------------------------------
@@ -332,18 +332,6 @@ int main(int argc, char **argv)
 		smith.Draw(sHaarPass1);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-		/* 	// Test
-			// --------------------------------
-			// Perform inverse haar transformation.
-			// --------------------------------
-			sInverseHaar.use();
-			sInverseHaar.setInt("coef_w", tssss::coef_w);
-			sInverseHaar.setInt("coef_h", tssss::coef_h);
-			glBindImageTexture(0, tssss_radiance_map, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-			glBindImageTexture(1, haar_wavelet_temp_image, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-			glDispatchCompute(1, 1, 1);
-			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT); */
-
 		// Pass 2 Kernel
 		// --------------------------------
 		// Compute kernels.
@@ -456,41 +444,68 @@ int main(int argc, char **argv)
 			projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100000.0f);
 			view = camera.GetViewMatrix();
 
-			// GLTimer timer;
-			// // Pass 1
-			// // --------------------------------
-			// // Render radiance map into **tssss_radiance_map**.
-			// // --------------------------------
+			GLTimer timer;
+			// Pass 1
+			// --------------------------------
+			// Render radiance map into **tssss_radiance_map**.
+			// --------------------------------
 			// timer.setStart();
-			// glBindFramebuffer(GL_FRAMEBUFFER, fBuffer);
-			// glViewport(0, 0, tssss::tex_w, tssss::tex_h);
-			// sRenderPass1.use();
-			// sRenderPass1.setMat4("model", model);
-			// sRenderPass1.setMat4("view", view);
-			// sRenderPass1.setMat4("projection", projection);
-			// backpack.Draw(sRenderPass1);
-			// glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glBindFramebuffer(GL_FRAMEBUFFER, fBuffer);
+			glViewport(0, 0, tssss::tex_w, tssss::tex_h);
+			sRenderPass1.use();
+			sRenderPass1.setMat4("model", model);
+			sRenderPass1.setMat4("view", view);
+			sRenderPass1.setMat4("projection", projection);
+			smith.Draw(sRenderPass1);
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 			// timer.setEnd();
 			// timer.wait();
-			// printf("Pass 1: %fms. ", timer.getTime_ms());
+			// printf("Pass 1 Radiance map: %fms. ", timer.getTime_ms());
 
-			// // Pass 2
-			// // --------------------------------
-			// // Compute haar transformation of radiance map.
-			// // --------------------------------
+			// Pass 2
+			// --------------------------------
+			// Compute haar transformation of radiance map.
+			// --------------------------------
 			// timer.setStart();
-			// sRenderPass2.use();
-			// sRenderPass2.setInt("coef_w", tssss::coef_w);
-			// sRenderPass2.setInt("coef_h", tssss::coef_h);
-			// sRenderPass2.setInt("tex_w", tssss::tex_w);
-			// sRenderPass2.setInt("tex_h", tssss::tex_h);
-			// glBindImageTexture(0, tssss_radiance_map, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-			// glBindImageTexture(1, haar_wavelet_temp_image, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-			// glDispatchCompute(1, 1, 1);
-			// glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+			sRenderPass2.use();
+			sRenderPass2.setInt("coef_w", tssss::coef_w);
+			sRenderPass2.setInt("coef_h", tssss::coef_h);
+			sRenderPass2.setInt("tex_w", tssss::tex_w);
+			sRenderPass2.setInt("tex_h", tssss::tex_h);
+			glBindImageTexture(0, tssss_radiance_map, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+			glBindImageTexture(1, haar_wavelet_temp_image, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+			glDispatchCompute(1, 1, 1);
+			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
 			// timer.setEnd();
 			// timer.wait();
-			// printf("Pass 2: %fms.\n", timer.getTime_ms());
+			// printf("Pass 2 Haar transform: %fms.\n", timer.getTime_ms());
+
+			// Test
+			// --------------------------------
+			// Perform inverse haar transformation.
+			// --------------------------------
+			sInverseHaar.use();
+			sInverseHaar.setInt("coef_w", tssss::coef_w);
+			sInverseHaar.setInt("coef_h", tssss::coef_h);
+			sInverseHaar.setInt("tex_w", tssss::tex_w);
+			sInverseHaar.setInt("tex_h", tssss::tex_h);
+			glBindImageTexture(0, tssss_radiance_map, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+			glBindImageTexture(1, haar_wavelet_temp_image, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+			glDispatchCompute(1, 1, 1);
+			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+
+			// Pass
+			// --------------------------------
+			// Check radiance map and kernels.
+			// --------------------------------
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+			sCheckImage.use();
+			glBindImageTexture(0, tssss_radiance_map, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+			glBindImageTexture(1, tssss_radiance_map_after_sss, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+			renderQuad();
 
 			// // Pass
 			// // --------------------------------
@@ -509,34 +524,21 @@ int main(int argc, char **argv)
 			// timer.wait();
 			// printf("Convolution: %fms.\n", timer.getTime_ms());
 
-			// // Pass
+			// // Pass 3
 			// // --------------------------------
-			// // Check radiance map and kernels.
+			// // Render.
 			// // --------------------------------
-			// glBindFramebuffer(GL_FRAMEBUFFER, 0);
 			// glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
 			// glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			// glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-			// sCheckImage.use();
-			// glBindImageTexture(0, tssss_radiance_map, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-			// glBindImageTexture(1, tssss_radiance_map_after_sss, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-			// renderQuad();
-
-			// Pass 3
-			// --------------------------------
-			// Render.
-			// --------------------------------
-			glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-			sRenderPass3.use();
-			sRenderPass3.setMat4("model", model);
-			sRenderPass3.setMat4("view", view);
-			sRenderPass3.setMat4("projection", projection);
-			sRenderPass3.setVec3("view_pos", camera.Position);
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, smith_diffuse);
-			smith.Draw(sRenderPass3);
+			// sRenderPass3.use();
+			// sRenderPass3.setMat4("model", model);
+			// sRenderPass3.setMat4("view", view);
+			// sRenderPass3.setMat4("projection", projection);
+			// sRenderPass3.setVec3("view_pos", camera.Position);
+			// glActiveTexture(GL_TEXTURE0);
+			// glBindTexture(GL_TEXTURE_2D, smith_diffuse);
+			// smith.Draw(sRenderPass3);
 
 			glfwSwapBuffers(window);
 			glfwPollEvents();
@@ -772,7 +774,7 @@ void renderQuad()
 // ---------------------------------------------------------------------------------------------------------
 void processInput(GLFWwindow *window)
 {
-	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_RELEASE)
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
 
 	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
